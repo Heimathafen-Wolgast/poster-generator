@@ -1,48 +1,43 @@
 import streamlit as st
 from poster_maker import create_poster
-from PIL import Image
 import tempfile
+import os
 
-st.set_page_config(page_title="Runge-Poster Generator", layout="centered")
+st.set_page_config(page_title="Heimathafen Poster Generator", layout="centered")
 
-st.title("Poster-Generator")
+st.title("🖼️ Heimathafen Plakat Generator")
 
-uploaded_file = st.file_uploader("Hintergrundbild hochladen", type=["jpg", "png"])
+with st.form("poster_form"):
+    title = st.text_input("Titel", "Rungefest")
+    subtitle = st.text_input("Untertitel", "Kunst & Kultur in Wolgast")
+    date = st.text_input("Datum (TT.MM)", "25.07")
+    time = st.text_input("Uhrzeit", "ab 14:00 Uhr")
+    org1 = st.text_input("Veranstalter 1 (zweizeilig mit \\n)", "Philipp Otto\nRunge Klub")
+    org2 = st.text_input("Veranstalter 2 (zweizeilig mit \\n, optional)", "heimathafen\nWolgast")
+    main_color = st.color_picker("Hauptfarbe (Welle & Kopfzeile)", "#a52a2a")
+    background_img = st.file_uploader("Hintergrundbild hochladen", type=["png", "jpg", "jpeg"])
+    submitted = st.form_submit_button("Plakat generieren")
 
-title = st.text_input("Titel", "Runges Geburtstag")
-subtitle = st.text_input("Untertitel", "im Rungehaus")
-date_text = st.text_input("Datum (mit Zeilenumbruch)", "25.\n07.")
-time_text = st.text_input("Uhrzeit", "ab 14:00")
-footer_left = st.text_input("Text links unten", "Philipp Otto\nRunge Klub")
-footer_right = st.text_input("Text rechts unten", "heimathafen WOLGAST")
+if submitted and background_img:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_bg, \
+         tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_out:
 
-if st.button("🎉 Poster generieren"):
-    if uploaded_file:
-        # Temporäre Dateien sicher anlegen
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_input:
-            tmp_input.write(uploaded_file.read())
-            tmp_input_path = tmp_input.name
+        tmp_bg.write(background_img.read())
+        tmp_bg.flush()
 
-        tmp_output_path = tmp_input_path.replace("input", "output")
-
-        # Poster generieren
         create_poster(
-            background_path=tmp_input_path,
-            output_path=tmp_output_path,
-            date_text=date_text,
-            time_text=time_text,
+            background_path=tmp_bg.name,
+            wave_path="wave.svg",  # ggf. vorher in PNG umwandeln
+            output_path=tmp_out.name,
             title=title,
             subtitle=subtitle,
-            footer_left=footer_left,
-            footer_right=footer_right
+            date=date,
+            time=time,
+            org1=org1,
+            org2=org2,
+            main_color=main_color
         )
 
-        # Vorschau anzeigen
-        st.image(tmp_output_path, caption="Dein generiertes Poster", use_column_width=True)
-
-        # Download anbieten
-        with open(tmp_output_path, "rb") as f:
-            st.download_button("⬇️ Poster herunterladen", f, file_name="runge_poster.png", mime="image/png")
-    else:
-        st.warning("Bitte lade ein Hintergrundbild hoch.")
-
+        st.image(tmp_out.name, caption="Vorschau", use_column_width=True)
+        with open(tmp_out.name, "rb") as f:
+            st.download_button("📥 Herunterladen", f, file_name="plakat.png")
