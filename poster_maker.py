@@ -8,6 +8,9 @@ def load_font(path, size):
     except:
         return ImageFont.load_default()
 
+def pt_to_px(pt, dpi=144):
+    return int(pt * dpi / 72)
+
 def create_poster(
     background_path,
     wave_path,
@@ -48,12 +51,23 @@ def create_poster(
     rambla_path = os.path.join("assets", "Rambla-Bold.ttf")
     sejagad_path = os.path.join("assets", "GreatSejagad.ttf")
 
-    font_size_title = int(height * 0.05)
-    font_size_subtitle = int(height * 0.025)
-    font_size_date = 96
-    font_size_time = 33
-    font_size_organizer = 28
-    font_size_header = 32
+    # Dynamisch skalierende Titelgrößen (abhängig von Höhe in mm → pt)
+    font_size_title_pt = height_mm * 0.13  # z. B. 38 pt bei 297 mm
+    font_size_subtitle_pt = height_mm * 0.065  # z. B. 19 pt bei 297 mm
+
+    # Feste Punktgrößen für andere Textelemente
+    font_size_date_pt = 48
+    font_size_time_pt = 18
+    font_size_organizer_pt = 14
+    font_size_header_pt = 16
+
+    # Umrechnung in px
+    font_size_title = pt_to_px(font_size_title_pt, dpi)
+    font_size_subtitle = pt_to_px(font_size_subtitle_pt, dpi)
+    font_size_date = pt_to_px(font_size_date_pt, dpi)
+    font_size_time = pt_to_px(font_size_time_pt, dpi)
+    font_size_organizer = pt_to_px(font_size_organizer_pt, dpi)
+    font_size_header = pt_to_px(font_size_header_pt, dpi)
 
     font_title = load_font(rambla_path, font_size_title)
     font_subtitle = load_font(rambla_path, font_size_subtitle)
@@ -65,11 +79,11 @@ def create_poster(
     # Red top bar
     bar_height = int(height * 0.05)
     draw.rectangle([0, 0, width, bar_height], fill=top_color)
-    
+
     # Header text
     text = "heimathafen-WOLGAST.de"
     bbox = draw.textbbox((0, 0), text, font=font_header)
-    text_width = bbox[2] - bbox[0]  # right - left
+    text_width = bbox[2] - bbox[0]
     draw.text(((width - text_width) / 2, bar_height / 4), text, font=font_header, fill="white")
 
     # Title + subtitle (green box area)
