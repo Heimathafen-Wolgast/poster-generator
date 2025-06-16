@@ -67,10 +67,10 @@ def create_poster(
     draw.rectangle([0, 0, width, bar_height], fill=top_color)
     
     # Header text
-text = "heimathafen-WOLGAST.de"
-bbox = draw.textbbox((0, 0), text, font=font_header)
-text_width = bbox[2] - bbox[0]  # right - left
-draw.text(((width - text_width) / 2, bar_height / 4), text, font=font_header, fill="white")
+    text = "heimathafen-WOLGAST.de"
+    bbox = draw.textbbox((0, 0), text, font=font_header)
+    text_width = bbox[2] - bbox[0]  # right - left
+    draw.text(((width - text_width) / 2, bar_height / 4), text, font=font_header, fill="white")
 
     # Title + subtitle (green box area)
     margin = int(width * 0.05)
