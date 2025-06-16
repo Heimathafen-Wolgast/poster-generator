@@ -52,14 +52,14 @@ def create_poster(
     sejagad_path = os.path.join("assets", "GreatSejagad.ttf")
 
     # Dynamisch skalierende Titelgrößen (abhängig von Höhe in mm → pt)
-    font_size_title_pt = height_mm * 0.13  # z. B. 38 pt bei 297 mm
-    font_size_subtitle_pt = height_mm * 0.065  # z. B. 19 pt bei 297 mm
+    font_size_title_pt = height_mm * 0.33  # z. B. 38 pt bei 297 mm
+    font_size_subtitle_pt = height_mm * 0.12  # z. B. 19 pt bei 297 mm
 
     # Feste Punktgrößen für andere Textelemente
-    font_size_date_pt = 48
-    font_size_time_pt = 18
-    font_size_organizer_pt = 14
-    font_size_header_pt = 16
+    font_size_date_pt = 96
+    font_size_time_pt = 33
+    font_size_organizer_pt = 26
+    font_size_header_pt = 24
 
     # Umrechnung in px
     font_size_title = pt_to_px(font_size_title_pt, dpi)
