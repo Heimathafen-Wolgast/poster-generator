@@ -68,7 +68,7 @@ def create_poster(
     
     # Header text
     text = "heimathafen-WOLGAST.de"
-    text_width, _ = draw.textsize(text, font=font_header)
+    text_width, _ = draw.textbbox(text, font=font_header)
     draw.text(((width - text_width) / 2, bar_height / 4), text, font=font_header, fill="white")
 
     # Title + subtitle (green box area)
