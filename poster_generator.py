@@ -1,131 +1,117 @@
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFont
+import cairosvg
+import io
 import textwrap
 import os
-import cairosvg
-from io import BytesIO
 
-def load_font(path, size):
-    try:
-        return ImageFont.truetype(path, size)
-    except Exception as e:
-        print(f"Fehler beim Laden der Schrift: {e}")
-        return ImageFont.load_default()
+DPI = 144
+A4_WIDTH_PX = int(8.27 * DPI)
+A4_HEIGHT_PX = int(11.69 * DPI)
 
-def draw_text_with_wrap(draw, text, font, max_width, start_pos, fill, line_spacing=1.2):
+def load_font(font_path, size):
+    return ImageFont.truetype(font_path, size)
+
+def add_gradient(draw, width, height):
+    for y in range(int(height/2)):
+        alpha = int(128 * (1 - y / (height/2)))
+        draw.rectangle([0, y, width, y+1], fill=(0, 0, 0, alpha))
+
+def wrap_text_to_fit(text, font, max_width):
     lines = []
-    words = text.split()
-    while words:
-        line = ''
-        while words and draw.textlength(line + words[0], font=font) <= max_width:
-            line += words.pop(0) + ' '
-        lines.append(line.strip())
-    y = start_pos[1]
-    for line in lines:
-        draw.text((start_pos[0], y), line, font=font, fill=fill)
-        y += int(font.size * line_spacing)
-    return y  # Return end position
+    for paragraph in text.split('\n'):
+        line = ""
+        for word in paragraph.split():
+            test_line = f"{line} {word}".strip()
+            if font.getlength(test_line) <= max_width:
+                line = test_line
+            else:
+                lines.append(line)
+                line = word
+        lines.append(line)
+    return lines
 
-def create_poster(
-    background_path,
-    title,
-    subtitle,
-    date,
-    time,
-    veranstalter1,
-    veranstalter2,
-    output_path,
-    top_wave_color="#A00000"
-):
-    # Postermaße (A4 bei 144 DPI)
-    dpi = 144
-    width_mm, height_mm = 210, 297
-    width = int(width_mm / 25.4 * dpi)
-    height = int(height_mm / 25.4 * dpi)
+def svg_to_png(svg_path, color, width, height):
+    with open(svg_path, 'r') as f:
+        svg = f.read().replace("#FFFFFF", color)  # Recolor white to given color
+    png_data = cairosvg.svg2png(bytestring=svg, output_width=width, output_height=height)
+    return Image.open(io.BytesIO(png_data))
 
-    # Neues Poster erzeugen
-    poster = Image.new("RGB", (width, height), (255, 255, 255))
+def generate_poster(data, output_path='output/poster.png'):
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-    # Hintergrundbild einfügen (zentriert, nicht verzerrt, ggf. gecropped)
-    bg = Image.open(background_path).convert("RGB")
+    # Setup
+    base = Image.new('RGB', (A4_WIDTH_PX, A4_HEIGHT_PX), (255, 255, 255))
+    draw = ImageDraw.Draw(base, 'RGBA')
+
+    # Hintergrundbild einfügen
+    bg = Image.open(data['background']).convert("RGB")
     bg_ratio = bg.width / bg.height
-    poster_ratio = width / height
+    crop_width = A4_WIDTH_PX
+    crop_height = int(A4_WIDTH_PX / bg_ratio)
+    if crop_height > A4_HEIGHT_PX:
+        crop_height = A4_HEIGHT_PX
+        crop_width = int(bg_ratio * A4_HEIGHT_PX)
+    bg = bg.resize((crop_width, crop_height))
+    base.paste(bg.crop((0, 0, A4_WIDTH_PX, A4_HEIGHT_PX)), (0, 0))
 
-    if bg_ratio > poster_ratio:
-        new_height = height
-        new_width = int(bg.width * height / bg.height)
-    else:
-        new_width = width
-        new_height = int(bg.height * width / bg.width)
+    # Schwarzer Verlauf
+    gradient = Image.new('RGBA', (A4_WIDTH_PX, A4_HEIGHT_PX), (0, 0, 0, 0))
+    grad_draw = ImageDraw.Draw(gradient)
+    add_gradient(grad_draw, A4_WIDTH_PX, A4_HEIGHT_PX)
+    base = Image.alpha_composite(base.convert('RGBA'), gradient)
 
-    bg = bg.resize((new_width, new_height))
-    bg = bg.crop(((new_width - width) // 2, (new_height - height) // 2,
-                  (new_width - width) // 2 + width, (new_height - height) // 2 + height))
-    poster.paste(bg, (0, 0))
+    # Rechteck oben mit Farbe
+    draw.rectangle([0, 0, A4_WIDTH_PX, 180], fill=data['theme_color'])
 
-    draw = ImageDraw.Draw(poster)
+    # Fonts
+    font_dir = "fonts"
+    headline_font = load_font(f"{font_dir}/GreatSejagad-Regular.ttf", 90)
+    rambla_font = load_font(f"{font_dir}/Rambla-Bold.ttf", 60)
 
-    # Farbverlauf von oben bis Mitte
-    gradient = Image.new('L', (1, height // 2), color=0xFF)
-    for y in range(height // 2):
-        alpha = int(128 * (1 - y / (height / 2)))
-        gradient.putpixel((0, y), alpha)
-    alpha = gradient.resize((width, height // 2))
-    black_overlay = Image.new('RGBA', (width, height // 2), color=(0, 0, 0, 0))
-    black_overlay.putalpha(alpha)
-    poster.paste(black_overlay, (0, int(height * 0.05)), black_overlay)
+    # A - Domain
+    draw.text((90, 40), data['domain'], font=headline_font, fill="white")
 
-    # Obere Leiste
-    bar_height = int(height * 0.05)
-    draw.rectangle([0, 0, width, bar_height], fill=top_wave_color)
+    # B - Titel & Untertitel
+    title_area = (80, 200, A4_WIDTH_PX - 80, 550)
+    max_width = title_area[2] - title_area[0]
+    title_font = load_font(f"{font_dir}/Rambla-Bold.ttf", 100)
+    subtitle_font = load_font(f"{font_dir}/Rambla-Bold.ttf", 40)
 
-    # Schriftarten
-    rambla_path = os.path.join("assets", "Rambla-Bold.ttf")
-    sejagad_path = os.path.join("assets", "GreatSejagad.ttf")
+    title_lines = wrap_text_to_fit(data['title'], title_font, max_width)
+    subtitle_lines = wrap_text_to_fit(data['subtitle'], subtitle_font, max_width)
+    y = title_area[1]
+    for line in title_lines:
+        draw.text((title_area[0], y), line, font=title_font, fill="white")
+        y += 100
+    for line in subtitle_lines:
+        draw.text((title_area[0], y), line, font=subtitle_font, fill="white")
+        y += 50
 
-    font_header = load_font(sejagad_path, int(bar_height * 0.6))
-    font_title = load_font(rambla_path, int(height * 0.06))
-    font_subtitle = load_font(rambla_path, int(height * 0.035))
-    font_date = load_font(rambla_path, int(height * 0.06))
-    font_time = load_font(rambla_path, int(height * 0.03))
-    font_org = load_font(rambla_path, int(height * 0.027))
+    # C - Datum
+    draw.text((A4_WIDTH_PX - 240, 210), data['date_day'], font=rambla_font, fill="white")
+    draw.text((A4_WIDTH_PX - 240, 280), data['date_month'], font=rambla_font, fill="white")
 
-    # Header Text
-    header_text = "heimathafen-WOLGAST.de"
-    w = draw.textlength(header_text, font=font_header)
-    draw.text(((width - w) / 2, bar_height * 0.2), header_text, font=font_header, fill="white")
+    # D - Uhrzeit (zwei Zeilen)
+    draw.text((A4_WIDTH_PX - 270, 370), data['time_start'], font=subtitle_font, fill="white")
+    draw.text((A4_WIDTH_PX - 270, 420), data['time_desc'], font=subtitle_font, fill="white")
 
-    # Titel & Untertitel
-    margin = int(width * 0.05)
-    current_y = int(height * 0.08)
-    current_y = draw_text_with_wrap(draw, title, font_title, width * 0.6, (margin, current_y), "white")
-    current_y += 5
-    current_y = draw_text_with_wrap(draw, subtitle, font_subtitle, width * 0.6, (margin, current_y), "white")
+    # E & F - Veranstalter
+    org_font = load_font(f"{font_dir}/Rambla-Bold.ttf", 40)
+    if len(data['organizers']) >= 1:
+        lines = wrap_text_to_fit(data['organizers'][0], org_font, 600)
+        draw.text((80, 630), lines[0], font=org_font, fill="white", anchor="lt")
+        if len(lines) > 1:
+            draw.text((80, 670), lines[1], font=org_font, fill="white", anchor="rt")
+    if len(data['organizers']) == 2:
+        lines = wrap_text_to_fit(data['organizers'][1], org_font, 600)
+        draw.text((80, 730), lines[0], font=org_font, fill="white", anchor="lt")
+        if len(lines) > 1:
+            draw.text((80, 770), lines[1], font=org_font, fill="white", anchor="rt")
 
-    # Datum (groß)
-    date_x = int(width * 0.68)
-    date_y = int(height * 0.08)
-    date_parts = date.split(".")
-    if len(date_parts) >= 2:
-        draw.text((date_x, date_y), date_parts[0] + ".", font=font_date, fill="white")
-        draw.text((date_x, date_y + font_date.size + 5), date_parts[1] + ".", font=font_date, fill="white")
+    # G - SVG Logo
+    wave = svg_to_png(data['svg_path'], data['theme_color'], 500, 100)
+    base.paste(wave, (int((A4_WIDTH_PX - wave.width)/2), 800), wave)
 
-    # Uhrzeit darunter
-    draw.text((date_x, date_y + font_date.size * 2 + 10), f"ab {time}", font=font_time, fill="white")
+    base.convert('RGB').save(output_path, dpi=(DPI, DPI))
 
-    # Welle einfügen (aus .svg)
-    svg_path = os.path.join("assets", "heimathafen_wave_blue.svg")
-    wave_png = BytesIO()
-    cairosvg.svg2png(url=svg_path, write_to=wave_png, output_width=width)
-    wave_img = Image.open(wave_png).convert("RGBA")
 
-    # Farbe der Welle anpassen (wenn nötig)
-    wave_colored = ImageOps.colorize(ImageOps.grayscale(wave_img), black="black", white=top_wave_color)
-    poster.paste(wave_colored, (0, height - wave_colored.height), wave_img)
-
-    # Veranstalter (mittig über der Welle)
-    org_text = veranstalter1 if not veranstalter2 else veranstalter1 + " · " + veranstalter2
-    text_w = draw.textlength(org_text, font=font_org)
-    draw.text(((width - text_w) / 2, height - wave_colored.height - font_org.size - 10), org_text, font=font_org, fill="white")
-
-    # Speichern
-    poster.save(output_path)

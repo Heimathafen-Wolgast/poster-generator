@@ -1,4 +1,4 @@
-streamlit
+flask
 Pillow
 cairosvg
-flask
+reportlab
