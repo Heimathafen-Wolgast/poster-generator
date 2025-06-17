@@ -1,66 +1,53 @@
-import streamlit as st
-import tempfile
-from poster_maker import create_poster
-from PIL import Image
+from flask import Flask, render_template, request, send_file
+from werkzeug.utils import secure_filename
 import os
+from poster_generator import create_poster
 
-st.set_page_config(layout="centered", page_title="Plakatgenerator Heimathafen")
+app = Flask(__name__)
+UPLOAD_FOLDER = "uploads"
+OUTPUT_FOLDER = "outputs"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-st.title("🎨 Plakatgenerator Heimathafen")
+@app.route("/", methods=["GET", "POST"])
+def index():
+    if request.method == "POST":
+        # Formulardaten
+        title = request.form.get("title", "")
+        subtitle = request.form.get("subtitle", "")
+        date = request.form.get("date", "")  # Format: TT.MM
+        time = request.form.get("time", "")  # z.B. "14:00"
+        veranstalter = request.form.get("veranstalter", "")
+        color = request.form.get("top_color", "#992323")
 
-with st.form("poster_form"):
-    st.subheader("🖼️ Eingaben für das Plakat")
+        # Datei verarbeiten
+        bg_file = request.files.get("background")
+        if not bg_file:
+            return "Hintergrundbild erforderlich", 400
+        filename = secure_filename(bg_file.filename)
+        bg_path = os.path.join(UPLOAD_FOLDER, filename)
+        bg_file.save(bg_path)
 
-    background_file = st.file_uploader("Hintergrundbild (JPG/PNG)", type=["jpg", "jpeg", "png"], key="background")
-    wave_file = st.file_uploader("Wellen-Grafik (SVG/PNG)", type=["png", "svg"], key="wave")
+        output_path = os.path.join(OUTPUT_FOLDER, "poster_output.png")
+        create_poster(
+            background_path=bg_path,
+            output_path=output_path,
+            title=title,
+            subtitle=subtitle,
+            date=date,
+            time=time,
+            veranstalter=veranstalter,
+            top_color=hex_to_rgb(color),
+        )
 
-    top_color = st.color_picker("Farbe für obere Leiste und Welle", "#952926")
+        return send_file(output_path, mimetype="image/png", as_attachment=True)
 
-    title = st.text_input("Titel", "SOMMERKONZERT")
-    subtitle = st.text_input("Untertitel", "mit der Wolgaster Band")
+    return render_template("form.html")
 
-    date = st.text_input("Datum (Format: DD.MM)", "12.08")
-    time = st.text_input("Uhrzeit", "19:00")
+def hex_to_rgb(hex_color):
+    """Wandelt z. B. '#992323' in (153, 35, 35)"""
+    hex_color = hex_color.lstrip("#")
+    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2 ,4))
 
-    veranstalter1 = st.text_input("Veranstalter links", "Kulturverein Heimathafen")
-    veranstalter2 = st.text_input("Veranstalter rechts (optional)", "")
-
-    submitted = st.form_submit_button("Plakat generieren")
-
-if submitted:
-    if not background_file or not wave_file:
-        st.error("Bitte lade sowohl ein Hintergrundbild als auch eine Wellen-Grafik hoch.")
-    else:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_bg, \
-             tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_wave, \
-             tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_out:
-
-            tmp_bg.write(background_file.read())
-            tmp_bg.flush()
-
-            wave_ext = os.path.splitext(wave_file.name)[1].lower()
-            if wave_ext == ".svg":
-                # SVG muss in PNG konvertiert werden
-                from cairosvg import svg2png
-                svg2png(bytestring=wave_file.read(), write_to=tmp_wave.name)
-            else:
-                tmp_wave.write(wave_file.read())
-                tmp_wave.flush()
-
-            create_poster(
-                background_path=tmp_bg.name,
-                wave_path=tmp_wave.name,
-                output_path=tmp_out.name,
-                top_color=top_color,
-                title=title,
-                subtitle=subtitle,
-                date=date,
-                time=time,
-                veranstalter1=veranstalter1,
-                veranstalter2=veranstalter2
-            )
-
-            st.success("✅ Plakat erfolgreich erstellt!")
-            st.image(Image.open(tmp_out.name), caption="Generiertes Plakat", use_column_width=True)
-            with open(tmp_out.name, "rb") as f:
-                st.download_button("⬇️ Plakat herunterladen", f, file_name="plakat.png", mime="image/png")
+if __name__ == "__main__":
+    app.run(debug=True)
