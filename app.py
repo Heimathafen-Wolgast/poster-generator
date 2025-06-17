@@ -1,50 +1,46 @@
-from flask import Flask, render_template, request, send_file
-from werkzeug.utils import secure_filename
-import os
+import streamlit as st
 from poster_generator import create_poster
+import tempfile
+import os
 
-app = Flask(__name__)
-UPLOAD_FOLDER = "uploads"
-OUTPUT_FOLDER = "outputs"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+st.set_page_config(page_title="Heimathafen Plakat Generator", layout="centered")
 
-@app.route("/", methods=["GET", "POST"])
-def index():
-    if request.method == "POST":
-        # Formulardaten
-        title = request.form.get("title", "")
-        subtitle = request.form.get("subtitle", "")
-        date = request.form.get("date", "")  # Format: TT.MM
-        time = request.form.get("time", "")  # z.B. "14:00"
-        veranstalter = request.form.get("veranstalter", "")
-        color = request.form.get("top_color", "#992323")
+st.title("🎨 Heimathafen Plakat Generator")
 
-        # Datei verarbeiten
-        bg_file = request.files.get("background")
+with st.form("poster_form"):
+    title = st.text_input("Titel")
+    subtitle = st.text_input("Untertitel")
+    date = st.text_input("Datum (TT.MM)")
+    time = st.text_input("Uhrzeit")
+    veranstalter1 = st.text_input("Veranstalter 1")
+    veranstalter2 = st.text_input("Veranstalter 2 (optional)")
+    top_wave_color = st.color_picker("Farbe für oberen Balken & Welle", "#A00000")
+    bg_file = st.file_uploader("Hintergrundbild (JPG oder PNG)", type=["jpg", "jpeg", "png"])
+
+    submitted = st.form_submit_button("Plakat generieren")
+
+    if submitted:
         if not bg_file:
-            return "Hintergrundbild erforderlich", 400
-        filename = secure_filename(bg_file.filename)
-        bg_path = os.path.join(UPLOAD_FOLDER, filename)
-        bg_file.save(bg_path)
+            st.error("Bitte lade ein Hintergrundbild hoch.")
+        else:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                tmp.write(bg_file.read())
+                tmp_path = tmp.name
 
-        output_path = os.path.join(OUTPUT_FOLDER, "poster_output.png")
-        create_poster(
-            background_path=bg_path,
-            output_path=output_path,
-            title=title,
-            subtitle=subtitle,
-            date=date,
-            time=time,
-            veranstalter=veranstalter,
-            top_color=hex_to_rgb(color),
-        )
+            output_path = "poster_output.png"
+            create_poster(
+                background_path=tmp_path,
+                title=title,
+                subtitle=subtitle,
+                date=date,
+                time=time,
+                veranstalter1=veranstalter1,
+                veranstalter2=veranstalter2,
+                output_path=output_path,
+                top_wave_color=top_wave_color
+            )
 
-        return send_file(output_path, mimetype="image/png", as_attachment=True)
+            st.image(output_path, caption="Vorschau", use_column_width=True)
 
-    return render_template("form.html")
-
-def hex_to_rgb(hex_color):
-    """Wandelt z. B. '#992323' in (153, 35, 35)"""
-    hex_color = hex_color.lstrip("#")
-    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2 ,4))
+            with open(output_path, "rb") as f:
+                st.download_button("📥 Poster herunterladen", f, file_name="poster.png", mime="image/png")
