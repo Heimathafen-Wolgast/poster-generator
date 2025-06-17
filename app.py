@@ -48,6 +48,3 @@ def hex_to_rgb(hex_color):
     """Wandelt z. B. '#992323' in (153, 35, 35)"""
     hex_color = hex_color.lstrip("#")
     return tuple(int(hex_color[i:i+2], 16) for i in (0, 2 ,4))
-
-if __name__ == "__main__":
-    app.run(debug=True)
