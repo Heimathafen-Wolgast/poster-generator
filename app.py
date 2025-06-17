@@ -1,58 +1,61 @@
-from flask import Flask, render_template, request, send_file
+import streamlit as st
 from poster_generator import generate_poster
+import tempfile
 import os
 
-app = Flask(__name__)
-UPLOAD_FOLDER = 'uploads'
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+st.set_page_config(page_title="Poster Generator", layout="centered")
 
-@app.route("/", methods=["GET", "POST"])
-def index():
-    if request.method == "POST":
-        bg_file = request.files["background"]
-        bg_path = os.path.join(UPLOAD_FOLDER, bg_file.filename)
-        bg_file.save(bg_path)
+st.title("🖼️ Poster Generator – Heimathafen Wolgast")
 
-        svg_path = 'Welle-weiß.svg'  # already in project
+with st.form("poster_form"):
+    st.subheader("🎨 Design-Parameter")
 
-        data = {
-            'background': bg_path,
-            'theme_color': request.form['theme_color'],
-            'domain': request.form['domain'],
-            'title': request.form['title'],
-            'subtitle': request.form['subtitle'],
-            'date_day': request.form['date_day'],
-            'date_month': request.form['date_month'],
-            'time_start': request.form['time_start'],
-            'time_desc': request.form['time_desc'],
-            'organizers': request.form.getlist('organizers'),
-            'svg_path': svg_path
-        }
+    background_file = st.file_uploader("Hintergrundbild (JPG/PNG)", type=["jpg", "jpeg", "png"])
+    theme_color = st.color_picker("Farbthema", "#D32F2F")
 
-        generate_poster(data)
-        return send_file("output/poster.png", as_attachment=True)
+    domain = st.text_input("Domain", "heimathafen-WOLGAST.de")
+    title = st.text_input("Titel", "Motocross")
+    subtitle = st.text_input("Untertitel", "am Zieseberg")
 
-    return '''
-    <!doctype html>
-    <title>Poster Generator</title>
-    <h1>Generiere dein Poster</h1>
-    <form method=post enctype=multipart/form-data>
-      Hintergrundbild: <input type=file name=background><br>
-      Farbe (Hex): <input type=text name=theme_color value="#D32F2F"><br>
-      Domain: <input type=text name=domain value="heimathafen-WOLGAST.de"><br>
-      Titel: <input type=text name=title><br>
-      Untertitel: <input type=text name=subtitle><br>
-      Datum Tag: <input type=text name=date_day><br>
-      Datum Monat: <input type=text name=date_month><br>
-      Uhrzeit Beginn: <input type=text name=time_start><br>
-      Uhrzeit Beschreibung: <input type=text name=time_desc><br>
-      Veranstalter 1: <input type=text name=organizers><br>
-      Veranstalter 2: <input type=text name=organizers><br>
-      <input type=submit value="Poster generieren">
-    </form>
-    '''
+    date_day = st.text_input("Datum – Tag", "26.")
+    date_month = st.text_input("Datum – Monat", "07.")
 
-if __name__ == "__main__":
-    app.run(debug=True)
+    time_start = st.text_input("Uhrzeit", "ab 09:00")
+    time_desc = st.text_input("Uhrzeit Beschreibung", "Training")
+
+    org1 = st.text_input("Veranstalter 1", "Jugendchor des Runge-Gymnasiums")
+    org2 = st.text_input("Veranstalter 2", "Wolgaster Vokalisten")
+
+    submitted = st.form_submit_button("📤 Poster generieren")
+
+if submitted and background_file:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_bg:
+        tmp_bg.write(background_file.read())
+        tmp_bg_path = tmp_bg.name
+
+    data = {
+        "background": tmp_bg_path,
+        "theme_color": theme_color,
+        "domain": domain,
+        "title": title,
+        "subtitle": subtitle,
+        "date_day": date_day,
+        "date_month": date_month,
+        "time_start": time_start,
+        "time_desc": time_desc,
+        "organizers": [org1] if not org2 else [org1, org2],
+        "svg_path": "Welle-weiß.svg"
+    }
+
+    output_path = "output/poster.png"
+    os.makedirs("output", exist_ok=True)
+
+    with st.spinner("🖌️ Generiere Poster..."):
+        generate_poster(data, output_path)
+
+    st.success("✅ Poster erfolgreich erstellt!")
+    st.image(output_path, caption="Vorschau", use_column_width=True)
+    with open(output_path, "rb") as f:
+        st.download_button("📥 Download Poster", f, file_name="poster.png")
 
  
