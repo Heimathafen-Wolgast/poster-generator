@@ -1,134 +1,113 @@
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.utils import ImageReader
 from PIL import Image
-import io
-import os
+import io, os
 from lxml import etree
 import cairosvg
 
-PAGE_WIDTH, PAGE_HEIGHT = A4  # 595.27 x 841.89 pt bei 72dpi
-
+# Seitenmaße und Einheiten
 DPI = 300
 CM_TO_PT = DPI / 2.54
 A4_PX = (int(21 * CM_TO_PT), int(29.7 * CM_TO_PT))
 
-# Schriftarten registrieren
-FONT_PATH = "app/static/fonts/"
-pdfmetrics.registerFont(TTFont("GreatSejagad", os.path.join(FONT_PATH, "GreatSejagad.ttf")))
-pdfmetrics.registerFont(TTFont("Rambla-Bold", os.path.join(FONT_PATH, "Rambla-Bold.ttf")))
-pdfmetrics.registerFont(TTFont("Rambla-Regular", os.path.join(FONT_PATH, "Rambla-Regular.ttf")))
+# Schriftartenpfad
+FONT_PATH = os.path.join(os.path.dirname(__file__), "static/fonts")
+for name in ["GreatSejagad", "Rambla-Bold", "Rambla-Regular"]:
+    pdfmetrics.registerFont(TTFont(name, os.path.join(FONT_PATH, f"{name}.ttf")))
 
 def generate_poster(data, bg_image_stream, svg_color):
-    buffer = io.BytesIO()
-    c = canvas.Canvas(buffer, pagesize=(A4_PX[0], A4_PX[1]))
+    # PDF-Buffer anlegen
+    buffer_pdf = io.BytesIO()
+    c = canvas.Canvas(buffer_pdf, pagesize=A4_PX)
 
     # Hintergrundbild
     if bg_image_stream:
-        bg_img = Image.open(bg_image_stream)
-        bg_img = bg_img.convert("RGB")
-        bg_img = resize_and_crop(bg_img, A4_PX)
-        bg_io = io.BytesIO()
-        bg_img.save(bg_io, format="PNG")
-        bg_io.seek(0)
-        c.drawImage(ImageReader(bg_io), 0, 0, width=A4_PX[0], height=A4_PX[1])
+        bg = Image.open(bg_image_stream).convert("RGB")
+        bg = resize_and_crop(bg, A4_PX)
+        tmp = io.BytesIO()
+        bg.save(tmp, format="PNG")
+        tmp.seek(0)
+        c.drawImage(ImageReader(tmp), 0, 0, *A4_PX)
 
-    # Kopf-Rechteck
-    head_rect_h = 1.67 * CM_TO_PT
+    # Kopf-Rechteck & Schriftzug
+    head_h = 1.67 * CM_TO_PT
     c.setFillColor(data["top_bar_color"])
-    c.rect(0, A4_PX[1] - head_rect_h, A4_PX[0], head_rect_h, stroke=0, fill=1)
+    c.rect(0, A4_PX[1] - head_h, A4_PX[0], head_h, stroke=0, fill=1)
 
-    # Schriftzug "heimathafen-WOLGAST.de"
     c.setFillColorRGB(1, 1, 1)
-    c.setFont("GreatSejagad", 80)  # später berechnen
-    text_width = c.stringWidth("heimathafen-WOLGAST.de", "GreatSejagad", 80)
-    scale = (10.8 * CM_TO_PT) / text_width
-    c.saveState()
-    c.translate(A4_PX[0] / 2, A4_PX[1] - head_rect_h / 2)
-    c.scale(scale, scale)
-    c.drawCentredString(0, -25, "heimathafen-WOLGAST.de")
-    c.restoreState()
+    text = "heimathafen-WOLGAST.de"
+    font_size = calculate_font_size(c, text, "GreatSejagad", 10.8 * CM_TO_PT)
+    c.setFont("GreatSejagad", font_size)
+    c.drawCentredString(A4_PX[0] / 2, A4_PX[1] - (head_h / 2) - (font_size / 4), text)
 
-    # Verlauf-Rechteck (optional)
+    # Optionaler Verlauf
     if data["gradient_enabled"]:
-        gradient_path = create_gradient_rect(A4_PX[0], int(15.2 * CM_TO_PT), alpha=128)
-        c.drawImage(gradient_path, 0, A4_PX[1] - head_rect_h - (15.2 * CM_TO_PT),
-                    width=A4_PX[0], height=(15.2 * CM_TO_PT), mask='auto')
+        grad_png = create_gradient_rect(A4_PX[0], int(15.2 * CM_TO_PT), alpha=128)
+        c.drawImage(ImageReader(open(grad_png, "rb")), 0,
+                    A4_PX[1] - head_h - (15.2 * CM_TO_PT), width=A4_PX[0],
+                    height=15.2 * CM_TO_PT, mask='auto')
 
-    # Texte
+    # Textfelder platzieren
     draw_text(c, data)
 
-    # SVG (in Farbe einfärben)
-    svg_path = "app/static/images/Heimathafen-Wave.svg"
-    svg_buffer = recolor_svg(svg_path, svg_color)
-    c.drawImage(ImageReader(svg_buffer), 2.0 * CM_TO_PT, 23.7 * CM_TO_PT,
-            width=17.0 * CM_TO_PT, height=4.08 * CM_TO_PT, mask='auto')
+    # SVG-Logo einfärben und Platzieren
+    svg_buf = recolor_svg(os.path.join(os.path.dirname(__file__), "static/images/Heimathafen-Wave.svg"), svg_color)
+    c.drawImage(ImageReader(svg_buf), 2 * CM_TO_PT, 23.7 * CM_TO_PT,
+                width=17 * CM_TO_PT, height=4.08 * CM_TO_PT, mask='auto')
 
     c.showPage()
     c.save()
-    buffer.seek(0)
+    buffer_pdf.seek(0)
 
-    # PNG Export
-    buffer_png = io.BytesIO()
-    import cairosvg
-
-    # buffer enthält PDF-Daten
-    buffer_pdf = buffer.getvalue()
-    png_bytes = cairosvg.svg2png(bytestring=buffer_pdf, write_to=None)
+    # PDF → PNG konvertieren
+    png_bytes = cairosvg.svg2png(bytestring=buffer_pdf.getvalue(),
+                                 output_width=A4_PX[0], output_height=A4_PX[1])
     buffer_png = io.BytesIO(png_bytes)
     buffer_png.seek(0)
 
-    return buffer, buffer_png
+    return buffer_pdf, buffer_png
+
+def calculate_font_size(c, text, font, max_width):
+    size = 100
+    while c.stringWidth(text, font, size) > max_width:
+        size -= 1
+        if size < 10: break
+    return size
 
 def resize_and_crop(img, size):
-    img_ratio = img.width / img.height
-    target_ratio = size[0] / size[1]
-    if img_ratio > target_ratio:
-        new_height = size[1]
-        new_width = int(new_height * img_ratio)
-    else:
-        new_width = size[0]
-        new_height = int(new_width / img_ratio)
-    img = img.resize((new_width, new_height))
-    left = (new_width - size[0]) / 2
-    top = (new_height - size[1]) / 2
+    img.thumbnail((size[0], size[1]), Image.LANCZOS)
+    left = (img.width - size[0]) / 2
+    top = (img.height - size[1]) / 2
     return img.crop((left, top, left + size[0], top + size[1]))
 
-def create_gradient_rect(width, height, alpha=128):
-    # Ebene für Schwarzton mit gleichbleibender Alpha-Transparenz
-    top = Image.new('RGBA', (width, height), (0, 0, 0, alpha))
-    base = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-
-    # Maske als L‑Bild mit Verlauf
-    mask = Image.new('L', (width, height))
-    mask_data = [int(alpha * (1 - y/height)) for y in range(height) for x in range(width)]
-    mask.putdata(mask_data)
-
-    # Kompensation der Ebenen mit der Maske
-    result = Image.composite(top, base, mask)
-
-    path = '/tmp/gradient.png'
-    result.save(path)
+def create_gradient_rect(w, h, alpha=128):
+    img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    mask = Image.new('L', (w, h))
+    mask.putdata([int(alpha * (1 - y / h)) for y in range(h) for _ in range(w)])
+    img.putalpha(mask)
+    path = "/tmp/gradient.png"
+    img.save(path)
     return path
 
-def recolor_svg(svg_path, hex_color):
+def recolor_svg(path, hex_color):
     parser = etree.XMLParser(recover=True, encoding="utf-8")
-    tree = etree.parse(svg_path, parser)
-    root = tree.getroot()
-    for el in root.xpath('//*[@fill]'):
+    tree = etree.parse(path, parser)
+    for el in tree.xpath('//*[@fill]'):
         el.attrib['fill'] = hex_color
     svg_bytes = etree.tostring(tree)
-    png_bytes = cairosvg.svg2png(bytestring=svg_bytes)
-    buffer = io.BytesIO(png_bytes)
-    buffer.seek(0)
-    return buffer
+    png = cairosvg.svg2png(bytestring=svg_bytes,
+                           output_width=int(17 * CM_TO_PT),
+                           output_height=int(4.08 * CM_TO_PT))
+    buf = io.BytesIO(png)
+    buf.seek(0)
+    return buf
 
 def draw_text(c, data):
-    # Du implementierst hier analog die Platzierung aller 7 Textfelder nach den gegebenen Koordinaten.
-    # Beispiel (Titel):
-    c.setFont("Rambla-Bold", 48)
+    # Beispiel: Titel-Text
+    c.setFont("Rambla-Bold", data.get("titel_size", 48))
     c.drawString(1.24 * CM_TO_PT, (29.7 - 3.14) * CM_TO_PT, data["titel"])
-    # Und so weiter für „Untertitel“, „Datum“, „Ort“ usw.
+    # TODO: Analoge Einträge für Untertitel, Datum, Ort, Organisatoren
+
