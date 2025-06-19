@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Heimathafen Poster Generator</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <h1>Plakat Generator</h1>
+  <form method="POST" enctype="multipart/form-data">
+    <label>Hintergrundbild: <input type="file" name="background" required></label><br>
+    <label>Titel:<br><textarea name="titel" rows="5" required></textarea></label><br>
+    <label>Untertitel:<input type="text" name="untertitel" required></label><br>
+    <label>Datum:<input type="text" name="datum" required></label><br>
+    <label>Ort:<input type="text" name="ort" required></label><br>
+    <label>Organisator 1:<br><textarea name="organisator1" rows="2"></textarea></label><br>
+    <label>Organisator 2:<br><textarea name="organisator2" rows="2"></textarea></label><br>
+    <label>Farbe Kopfzeile: <input type="color" name="top_bar_color" value="#000000"></label><br>
+    <label><input type="checkbox" name="gradient"> Verlauf aktivieren</label><br>
+    <button type="submit">Plakat generieren</button>
+  </form>
+</body>
+</html>

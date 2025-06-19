@@ -1,0 +1,13 @@
+body {
+  font-family: sans-serif;
+  margin: 2em;
+  background-color: #f0f0f0;
+}
+form {
+  background: white;
+  padding: 1em;
+  border-radius: 8px;
+}
+textarea, input[type="text"] {
+  width: 100%;
+}
