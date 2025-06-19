@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, send_file
-from poster_generator import generate_poster
+from .poster_generator import generate_poster
 from reportlab.lib.colors import HexColor
 
 app = Flask(__name__)
