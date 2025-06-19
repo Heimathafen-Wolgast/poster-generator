@@ -71,7 +71,13 @@ def generate_poster(data, bg_image_stream, svg_color):
 
     # PNG Export
     buffer_png = io.BytesIO()
-    Image.open(buffer).save(buffer_png, "PNG")
+    import cairosvg
+
+    # buffer enthält PDF-Daten
+    buffer_pdf = buffer.getvalue()
+    png_bytes = cairosvg.svg2png(bytestring=buffer_pdf, write_to=None)
+    buffer_png = io.BytesIO(png_bytes)
+    buffer_png.seek(0)
 
     return buffer, buffer_png
 
