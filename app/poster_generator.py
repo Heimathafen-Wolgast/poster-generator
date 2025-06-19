@@ -6,8 +6,9 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.utils import ImageReader
 from PIL import Image
 import io
-import cairosvg
 import os
+from lxml import etree
+import cairosvg
 
 PAGE_WIDTH, PAGE_HEIGHT = A4  # 595.27 x 841.89 pt bei 72dpi
 
@@ -62,8 +63,9 @@ def generate_poster(data, bg_image_stream, svg_color):
 
     # SVG (in Farbe einfärben)
     svg_path = "app/static/images/Heimathafen-Wave.svg"
-    svg_png_path = recolor_svg(svg_path, svg_color)
-    c.drawImage(svg_png_path, 2.0 * CM_TO_PT, 23.7 * CM_TO_PT, width=17.0 * CM_TO_PT, height=4.08 * CM_TO_PT, mask='auto')
+    svg_buffer = recolor_svg(svg_path, svg_color)
+    c.drawImage(ImageReader(svg_buffer), 2.0 * CM_TO_PT, 23.7 * CM_TO_PT,
+            width=17.0 * CM_TO_PT, height=4.08 * CM_TO_PT, mask='auto')
 
     c.showPage()
     c.save()
@@ -106,10 +108,17 @@ def create_gradient_rect(width, height, alpha=128):
     return path
 
 def recolor_svg(svg_path, hex_color):
-    svg = open(svg_path, 'r').read().replace("fill=\"#000000\"", f"fill=\"{hex_color}\"")
-    out_path = "/tmp/logo.png"
-    cairosvg.svg2png(bytestring=svg.encode('utf-8'), write_to=out_path)
-    return out_path
+    parser = etree.XMLParser(recover=True, encoding="utf-8")
+    tree = etree.parse(svg_path, parser)
+    root = tree.getroot()
+    for el in root.xpath('//*[@fill]'):
+        el.attrib['fill'] = hex_color
+    svg_bytes = etree.tostring(tree)
+    png_bytes = cairosvg.svg2png(bytestring=svg_bytes)
+    buffer = io.BytesIO(png_bytes)
+    buffer.seek(0)
+    return buffer
+
 
 def draw_text(c, data):
     # Du implementierst hier analog die Platzierung aller 7 Textfelder nach den gegebenen Koordinaten.
