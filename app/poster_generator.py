@@ -98,13 +98,16 @@ def resize_and_crop(img, size):
     return img.crop((left, top, left + size[0], top + size[1]))
 
 def create_gradient_rect(width, height, alpha=128):
-    img = Image.new('RGBA', (width, height))
-    for y in range(height):
-        a = int(alpha * (1 - y / height))
-        for x in range(width):
-            img.putpixel((x, y), (0, 0, 0, a))
-    path = "/tmp/gradient.png"
-    img.save(path)
+    base = Image.new('RGBA', (width, height), (0,0,0,0))
+    top = Image.new('RGBA', (width, height), (0,0,0,alpha))
+    mask = Image.new('L', (width, height))
+    mask_data = [
+        int(alpha * (1 - y/height)) for y in range(height) for x in range(width)
+    ]
+    mask.putdata(mask_data)
+    base.alpha_composite(top, dest=(0,0), mask=mask)
+    path = '/tmp/gradient.png'
+    base.save(path)
     return path
 
 def recolor_svg(svg_path, hex_color):
@@ -118,7 +121,6 @@ def recolor_svg(svg_path, hex_color):
     buffer = io.BytesIO(png_bytes)
     buffer.seek(0)
     return buffer
-
 
 def draw_text(c, data):
     # Du implementierst hier analog die Platzierung aller 7 Textfelder nach den gegebenen Koordinaten.
