@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, send_file, Response
 from werkzeug.wsgi import FileWrapper
 from reportlab.lib.colors import HexColor
-from poster_generator import generate_poster  # Nur so funktioniert's zuverlässig!
+from poster_generator import generate_poster 
 
 app = Flask(__name__)
 
