@@ -3,7 +3,7 @@ from werkzeug.wsgi import FileWrapper
 from reportlab.lib.colors import HexColor
 from poster_generator import generate_poster 
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder="app/templates", static_folder="app/static")
 
 @app.route("/", methods=["GET", "POST"])
 def index():
